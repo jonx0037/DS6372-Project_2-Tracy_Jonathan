@@ -1,0 +1,107 @@
+Hi Jon, I know this is not yet a proper RMD file. It's just an outline for now.
+
+MSDS 6372 Project 2
+Predicting whether a customer will subscribe to a term deposit
+DATA: https://archive.ics.uci.edu/ml/datasets/Bank+Marketing 
+########################################################################
+DELIVERABLES
+1. RMD file 
+2. video file of presentation <= 20 minutes
+3. Powerpoint file 
+########################################################################
+OBJECTIVE1 
+Display the ability to PERFORM EDA and BUILD A LOGISTIC REGRESSION MODEL for INTERPRETATION purposes using the training data.
+	-- for interpretation NOT prediction
+• Perform your multiple logistic regression analysis 
+	• Use ONLY EDA and intuition to build up your model 
+	SKIP feature selection? for OBJECTIVE1
+	interpret the regression coefficients and confidence intervals for relevant variables 
+	DO NOT include interactions with this model! 
+	Comment on the practical vs statistical significance of factors we deem important
+	• Do NOT go crazy with extremely fancy models -- let EDA, feature selection, and/or overall intuition guide you.
+	• DO NOT use interactions in OBJECTIVE1 models 
+	• Demonstrate our ability to interpret the regression coefficients! 
+	• USE EFFECTS PLOTS in addition to a thorough interpretation of coefficients.
+	For deciding between models during training, JUST USE THE AIC!
+########################################################################
+OBJECTIVE2 
+GOAL: build a model where prediction performance is prioritized. 
+SET AN OVERALL OBJECTIVE: Predicting if a customer will subscribe to a term deposit
+Determine an appropriate threshold for each model that MEETS THE OVERALL OBJECTIVE YOU HAVE SET out when discussing the accuracy metrics in the previous bullet point.
+(Here we are asked to choose which is worse: false positives or false negatives. And we should address the cost of false positives vs the cost false negatives!)
+HAVE A TRAIN/VALIDATION SPLIT!
+User simple logistic regression model as a baseline:
+perform additional competing models to improve on prediction performance metrics
+• Build 4-5 additional classification models to compare to your model in OBJECTIVE1. 
+	ONE MODEL should be an attempt at a COMPLEX LOGISTIC REGRESSION MODEL INCLUDING INTERACTION TERMS OR POLYNOMIAL TERMS. 
+		• DO FEATURE SELECTION for the logistic model here. 
+		If feature selection suggests that you do not include any interaction terms or polynomials, state this and include them anyways as an experiment.
+	ONE MODEL should be an LDA and QDA model. 
+	AT LEAST ONE MODEL should be a nonparametric model such as knn, random forest, classification tree.
+•COMPLEX LOGISTIC REGRESSION MODEL:
+	quick discussion on the reasoning for the complexity you added to the model 
+	Perhaps another slide on a deeper dive of EDA or discussion on logistical points based on your own knowledge of the variables. 
+	Similarly for LDA and QDA, EDA from earlier (or now) should include some commentary on whether or not the assumptions made these tools appear to be violated or not. 
+	Comment on the assumptions, but it is optional to try to fix them. 
+	This could perhaps be why these methods don’t perform well compared to others.
+• Define what Sensitivity, Specificity, PPV, and NPV mean in context to your project.
+	The group should discuss if they think one or two metrics should be prioritized over the others. THIS STEP IS CRITICAL!!!
+• For each model, 6 metrics should be computed and reported using the validation set.
+The Sensitivity, Specificity, Prevalence, PPV, NPV, and AUROC. 
+Reporting the K-FOLD LOGLOSS METRIC would also be helpful to include if you perfomed k-fold CV during the training step. 
+Make sure to communicate what threshold you are using that derives many of the metrics. 
+• Provide model ROC in either a panel graph or a single graph with models labeled in a legend. 
+	With a lot of models it may be helpful to organize them in two graphs to help communicate a point.
+• Based on the model comparisons, RECOMMEND A FINAL MODEL for PREDICTIONS. 
+	Provide any insights on why some models performed better than others 
+	OR making note if all models are about the same 
+	OR perhaps it should be noted that all the models are bad practically speaking.
+LOGISTICAL CONSIDERATIONS.
+• PCA might be helpful in various ways throughout your analysis 
+• Other UNSUPERVISED tools such as HEATMAPS and CLUSTER ANALYSIS from Unit 13 and 14. 
+• If there is a clear opportunity to use PCA in the project, Turner expects us to try it.
+• Clustering is optional.
+########################################################################
+PRESENTATION OUTLINE
+	• For every plot we show, we MUST talk about the plot!
+1. Introduction
+	a. Objective overview, project outline, and data description/variables used
+2. EDA
+	a. Summary of data cleaning
+	b. How was the data split? What percentage?
+	c. Summary statistics of training data
+	d. Visual assessments of training data
+	e. Additional assessments for interactions/model complexity/addressing LDA/QDA assumptions
+3. Additive Logistic Regression Overview
+	a. Describe the general approach to modling linking key insight from EDA and/or incorporating information from feature selection or AIC model comparisons
+	b. Produce an equation for the model (If its too long just make sure it is clearly stated what predictors are being used)
+	c. Provide an example of interpreting a regression coefficient from your model fit.
+		If possible interpret the coefficient from one continuous predictor and one categorical predictor. 
+		Include a CI along the way. 
+		CI doesn’t need to be interpreted. 
+		BONUS POINTS IF YOU INCLUDE AN ***EFFECTS PLOT***.
+4. Nonadditive Logistic Regression Overview
+	a. Remind us what EDA graphics support your idea of including a potential interactions. 
+		If you think its weak support of including an interaction, just communicate that. 
+		Show evidence of needing interactions, show graphs to support, __even if it is a stretch visually__ !!!
+	b. Make sure the model is clearly stated. 
+		What predictors are included additively?
+		What interactions and what polynomial terms have been added? 
+		If feature selection suggests that you do not include any interaction terms, state this and include them anyways as an experiment.
+5. Model Comparison
+	a. Metric definitions and state which metrics you feel are more relevant to optimize for when choosing a threshold
+	b. Provide confusion matrix results for each model along with AUROC metric.
+		Make sure you CLEARLY IDENTIFY WHAT THRESHOLD was used for the confusion matrix metrics you produced. 
+		It is up to you to THRESHOLD in a way that make sense in context to what you say in part a.
+6. Conclusions
+	a. Summarize what key predictors were found to be relevant and practical with Objective1’s model.
+	b. Summarize the overall findings to address Objective2. 
+		Is one better than the others? 
+		Are either of them good? 
+		Perhaps they are both bad? 
+		Give us your overall sense of how they will perform on new data and if that seems viable or not. 
+		Provide insight as to why one model may have performed better than the others 
+			(parameteric versus nonparameteric, assumptions met/not met, numeric versus categorical predictors, etc)
+	c. Comment on the scope of the model. 
+		When predicting future data points what must we assume about them? 
+		Are there any other logistical concerns about using your model in practice for the intended prediction goal?
