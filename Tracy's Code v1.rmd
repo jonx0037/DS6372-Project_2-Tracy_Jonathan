@@ -1,0 +1,558 @@
+---
+title: "MSDS 6372 Project 2: Modeling Bank Customer Term Deposit Subscription Behavior to Improve Marketing Efforts"
+author: 'Jonathan Rocha & Tracy Dower'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+# install.packages("effects") 
+setwd("C:/02 Stats Project 2/") # Jonathan change this to YOUR actual path
+# getwd()
+
+# library(dplyr)
+library(tidyverse) # includes dplyr and %>%
+library(ggplot2) # pretty plots
+# library(gtsummary) # create publication-ready summary tables with minimal code
+# library(flextable) # pretty tables
+# library(labelled) # for set_variable_labels
+# library(overviewR)
+# library(stringr)
+
+# DATA: https://archive.ics.uci.edu/ml/datasets/Bank+Marketing
+library(readr)
+bank_full <- read_csv2("bank+marketing/bank/bank-full.csv")
+names(bank_full)[names(bank_full) == "y"] <- "Subscribed" # Because having y as the variable name is confusing
+
+# View(bank_full)
+```
+## Data Preparation
+
+```{r clean_data}
+
+### Correct missing or nonsense values
+
+dim(bank_full) # 45211 rows with 17 columns
+sum(is.na(bank_full)) #0 rows with actual MISSING values
+sapply(bank_full, function(col) any(col == "unknown"))
+# unknown used as a placeholder for missing data in 4 columns
+sapply(bank_full[c("job", "education", "contact", "poutcome")], function(col) sum(col == "unknown"))
+# job education  contact poutcome 
+# 288   1857   13020   36959 
+
+# assuming the unknown's are Missing Completely At Random (MCAR) 
+bank_full[c("job", "education", "contact", "poutcome")] <- 
+ lapply(bank_full[c("job", "education", "contact", "poutcome")], 
+     function(col) ifelse(col == "unknown", NA, col))
+sapply(bank_full[c("job", "education", "contact", "poutcome")], function(col) sum(is.na(col)))
+
+# Function to impute the missing values using the MODE for each of those 4 columns:
+my_impute_missing <- function(x) {
+ x[is.na(x)] <- names(which.max(table(x)))
+ return(x)
+}
+bank_full[c("job", "education", "contact", "poutcome")] <-lapply(bank_full[c("job", "education", "contact", "poutcome")], my_impute_missing)
+sapply(bank_full[c("job", "education", "contact", "poutcome")], function(col) sum(is.na(col)))
+
+
+
+```
+# Exploratory Data Analysis
+summary stats
+summary stats
+summary stats
+summary stats
+summary stats
+summary stats
+
+say some stuff about the data -- summary stats
+```{r eda_summary_stats}
+
+library(ggplot2)
+ggplot(bank_full, aes(x=Subscribed, fill=Subscribed)) +
+ geom_bar() +     
+   scale_fill_manual(values = c("no" = "#F8766D", "yes" = "#00BFC4")) + # matches ggplot2 default palette
+ labs(title="Distribution of Subscriptions (Imbalanced Dataset)", x="Subscribed", y="Count")
+
+```
+Strong class imbalance: most customers said "no" to subscribing, and only a small fraction said "yes."
+
+
+
+```{r eda_job}
+ggplot(bank_full, aes(x=job, fill=Subscribed)) +
+ geom_bar(position="fill") +
+ labs(title="Subscription Rate by Job", x="Job", y="Proportion") +
+ scale_y_continuous(labels=scales::percent) +
+ theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+
+Subscriptions by Job:
+Students and retired individuals have the highest subscription rates (longest turquoise bars).
+Blue-collar, entrepreneur, and services roles have low subscription rates.
+
+```{r eda_education}
+ggplot(bank_full, aes(x=education, fill=Subscribed)) +
+ geom_bar(position="fill") +
+ labs(title="Subscription Rate by Education Level", x="Education", y="Proportion") +
+ scale_y_continuous(labels=scales::percent) +
+ theme(axis.text.x=element_text(angle=45, hjust=1))
+
+
+```
+Subscriptions by Level of Education
+Tertiary education has the highest subscription rate.
+Primary education has the lowest.
+Secondary is in between.
+
+This suggests education level is a strong predictor of campaign success.
+Later, we must explore the interaction between education level and balance -- because probably the higher educated people have higher balances.
+
+```{r eda_marital}
+ggplot(bank_full, aes(x=marital, fill=Subscribed)) +
+ geom_bar(position="fill") +
+ labs(title="Subscription Rate by Marital Status", x="marital", y="Proportion") +
+ scale_y_continuous(labels=scales::percent) +
+ theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+Single customers have the highest subscription rate (tallest turquoise bar)
+Married customers have the lowest subscription rate.
+Divorced customers are in between.
+
+Single people may be more receptive to the campaign, perhaps due to lifestyle, finances, or free time.
+Later, we should see how this effect fairs when moderated by balance.
+
+
+```{r eda_poutcomesuccess }
+ggplot(bank_full, aes(x=poutcome , fill=Subscribed)) +
+ geom_bar(position="fill") +
+ labs(title="Subscription Rate by Outcome of Previous Campaign ", x="poutcome ", y="Proportion") +
+ scale_y_continuous(labels=scales::percent) +
+ theme(axis.text.x=element_text(angle=45, hjust=1))
+
+```
+commment on the plot aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+
+```{r eda_age}
+ggplot(bank_full, aes(x=Subscribed, y=age, fill=Subscribed)) +
+ geom_boxplot(outlier.shape=NA) +
+ coord_cartesian(ylim=quantile(bank_full$age, c(0.01, 0.95)))+# adjust y-axis so extreme outliers don't dominate the plot
+ labs(title="Age by Subscription Outcome", x="Subscribed (y)", y="Customer Age") +
+ theme_minimal()
+
+```
+Median age is similar for both groups (around late 30s).
+The “yes” group has a slightly wider age range, skewed a bit older.
+Both groups include young and older customers — age alone may not be decisive.
+
+
+
+```{r eda_balance}
+ggplot(bank_full, aes(x=Subscribed, y=balance, fill=Subscribed)) +
+ geom_boxplot(outlier.shape=NA) +
+ coord_cartesian(ylim=quantile(bank_full$balance, c(0.01, 0.95)))+# adjust y-axis so extreme outliers don't dominate the plot
+ labs(title="Balance by Subscription Outcome", x="Subscribed (y)", y="Account Balance (€)") +
+ theme_minimal()
+
+```
+
+Customers who said "yes" have a higher median balance than those who said "no".
+The interquartile range (box width) is wider for "yes", suggesting more variation.
+A few very high balances exist in both groups (we trimmed extreme outliers for clarity).
+Customers with higher account balances are more likely to subscribe. Balance is a useful predictor.
+
+
+```{r eda_correlations}
+
+
+
+
+```
+
+# Train/Test Split 
+Maybe some narrative on why we do this?? How stats-naive is our audience? I dunno.
+
+```{r train_test_split}
+# MUST come AFTER data cleanup and EDA
+library(caret)
+set.seed(123)
+bank_full$Subscribed <- factor(bank_full$Subscribed, levels=c("no", "yes")) # Do this BEFORE the train/test split then we don't have to constantly redo it.
+split_index <- createDataPartition(bank_full$Subscribed, p = 0.8, list = FALSE)
+bank_full$Set <- "Validation"
+bank_full$Set[split_index] <- "Training"
+training <- bank_full[bank_full$Set == "Training", ]
+validation <- bank_full[bank_full$Set == "Validation", ]
+
+```
+# Objective 1: Perform Additive Logistric Regression 
+  • Display the ability to PERFORM EDA and BUILD A LOGISTIC REGRESSION MODEL for INTERPRETATION purposes using the training data.
+  • Objective 1 is for interpretable modeling, not predictive performance. Prof. Turner says:
+  • Focus on interpreting coefficients, CIs, statistical vs practical significance
+	• Use ONLY EDA and intuition to build up your model -- no feature selection
+	• interpret the regression coefficients and confidence intervals for relevant variables
+	• Comment on the practical vs statistical significance of factors we deem important
+	• Do NOT go crazy with extremely fancy models -- let EDA, feature selection, and/or overall intuition guide you.
+	• DO NOT use interactions in OBJECTIVE1 models
+	• Demonstrate our ability to interpret the regression coefficients!!!!
+	• USE EFFECTS PLOTS in addition to a thorough interpretation of coefficients.
+	• For deciding between models during training, JUST USE THE AIC!
+	
+
+  
+```{r o1_logistic_additive}
+obj1_model1  <- glm(Subscribed~age+job+education+marital+balance+contact+month+campaign+pdays+previous+poutcome, data=training, family="binomial")
+obj1_model2  <- glm(Subscribed~age+job+education+marital+contact+month+campaign+poutcome, data=training, family="binomial")
+dropDeviance_2_vs_1 <- anova(obj1_model1, obj1_model2, test = "Chisq")
+dropDeviance_2_vs_1  # ALL the features are STATISTICALLY SIGNIFICNATLY better than just the more powerful features
+
+AIC(obj1_model1)
+summary(obj1_model1)
+confint(obj1_model1)
+
+## Complex Logistic Regression Model Including Interaction Terms Or Polynomial Terms
+# Interpret ONE continuous predictor
+summary(obj1_model1)$coefficients["balance", ]
+confint(obj1_model1)["balance", ]
+
+# Interpret ONE categorical predictor
+summary(obj1_model1)$coefficients["jobstudent", ]
+confint(obj1_model1)["jobstudent", ]
+
+
+
+```
+Write 2–3 sentences interpreting:
+One continuous coefficient (e.g., duration) -- NO duration is not a predictor !! 
+One categorical coefficient (e.g., jobretired)
+And comment on practical vs statistical significance.
+
+
+## Drop-in-Deviance F-Tests
+Use Statistical Sleuth p.648-654
+The full model (all features) will always have higher aaaaaaa than a reduced model, but is the difference significant?
+Was the simpler model 2 less good than model 1 to a statistically significant degree?
+Was the simpler model 3 less good than model 1 to a statistically significant degree?
+
+We compared Model 1 (which includes all features) to a reduced Model 2 which omits including balance, pdays, and previous. The deviance difference is 22.137 on 3 degrees of freedom (p < 0.001), indicating that the removed variables significantly improve model fit. We retain them for now based on statistical significance, but will reassess for practical relevance later.
+
+
+## discuss best model from objective 1
+Here we should pick the best model and interpret the regression coefficients. aaaaaaaaaaaaaaa
+
+
+```{r o1_effects}
+library(effects)
+
+# Fit logistic regression model -- fewer predictors (we learned from LASSO -- remove "previous,age,pdays,balance"
+full_model_2 <- glm(Subscribed~job+education+marital+contact+month+campaign+poutcome,  data=bank_full, family="binomial")
+AIC(obj1_model1) # 28024.61  
+AIC(full_model_2) # 28054 -- less good than obj1_model1 but only barely
+summary(full_model_2)
+
+# Plot all effects
+plot(allEffects(full_model_2), multiline = TRUE, ci.style = "bands")
+plot(Effect("job", full_model_2))
+plot(Effect("education", full_model_2))
+plot(Effect("marital", full_model_2))
+plot(Effect("contact", full_model_2))
+plot(Effect("campaign", full_model_2)) # People do NOT like to be harassed!!
+plot(Effect("poutcome", full_model_2))
+```
+## talk about effects plots
+At this point, I think we have thoroughly explored the ADDITIVE LOGISTIC REGRESSION of this data.
+NOW WE
+pick our favorite and state the EQUATION OF THE MODEL
+and INTERPRET some coefficients 
+
+# Objective 2: Nonadditive Logisitic Regression
+Build a model where prediction performance is prioritized. 
+SET AN OVERALL OBJECTIVE: Predicting if a customer will subscribe to a term deposit
+Determine an appropriate threshold for each model that MEETS THE OVERALL OBJECTIVE YOU HAVE SET out when discussing the accuracy metrics in the previous bullet point.
+(Here we are asked to choose which is worse: false positives or false negatives. And we should address the cost of false positives vs the cost false negatives!)
+HAVE A TRAIN/VALIDATION SPLIT!
+User simple logistic regression model as a baseline:
+perform additional competing models to improve on prediction performance metrics
+• Build 4-5 additional classification models to compare to your model in OBJECTIVE1. 
+	ONE MODEL should be an attempt at a COMPLEX LOGISTIC REGRESSION MODEL INCLUDING INTERACTION TERMS OR POLYNOMIAL TERMS. 
+		• DO FEATURE SELECTION for the logistic model here. 
+		If feature selection suggests that you do not include any interaction terms or polynomials, state this and include them anyways as an experiment.
+	ONE MODEL should be an LDA and QDA model. 
+	AT LEAST ONE MODEL should be a nonparametric model such as knn, random forest, classification tree.
+• COMPLEX LOGISTIC REGRESSION MODEL
+	quick discussion on the reasoning for the complexity you added to the model 
+	Perhaps another slide on a deeper dive of EDA or discussion on logistical points based on your own knowledge of the variables. 
+	Similarly for LDA and QDA, EDA from earlier (or now) should include some commentary on whether or not the assumptions made these tools appear to be violated or not. 
+	Comment on the assumptions, but it is optional to try to fix them. 
+	This could perhaps be why these methods don’t perform well compared to others.
+• Define what Sensitivity, Specificity, PPV, and NPV mean in context to your project.
+	The group should discuss if they think one or two metrics should be prioritized over the others. THIS STEP IS CRITICAL!!!
+• For each model, 6 metrics should be computed and reported using the validation set.
+The Sensitivity, Specificity, Prevalence, PPV, NPV, and AUROC. 
+Reporting the K-FOLD LOGLOSS METRIC would also be helpful to include if you performed k-fold CV during the training step. 
+Make sure to communicate what threshold you are using that derives many of the metrics. 
+• Provide model ROC in either a panel graph or a single graph with models labeled in a legend. 
+	With a lot of models it may be helpful to organize them in two graphs to help communicate a point.
+• Based on the model comparisons, RECOMMEND A FINAL MODEL for PREDICTIONS. 
+	Provide any insights on why some models performed better than others 
+	OR making note if all models are about the same 
+	OR perhaps it should be noted that all the models are bad practically speaking.
+LOGISTICAL CONSIDERATIONS.
+• PCA might be helpful in various ways throughout your analysis 
+• Other UNSUPERVISED tools such as HEATMAPS and CLUSTER ANALYSIS from Unit 13 and 14. 
+• If there is a clear opportunity to use PCA in the project, Turner expects us to try it.
+• Clustering is optional.
+
+## Implications of Strong Class Imbalance:
+Discuss the No-Information rate
+because most responses are no, blindly choosing no will be right most of the time. 
+Accuracy becomes misleading
+A model that predicts "no" for everyone would still be about 90% accurate but it would be useless, because it would never identify the "yes" cases.
+Biased Training
+Many models (like logistic regression, random forest) can bias toward the majority class if not handled carefully.
+Low Sensitivity For The "Yes" Class
+We may get low sensitivity/recall for the "yes" class (failing to identify real subscribers).
+In this study: missing "yes" = missed marketing opportunities.
+Ways To Handle A  Strong Class Imbalance:
+Use precision, recall, F1-score, AUC, not just accuracy.
+
+
+```{r o2_complexLogist}
+# Identifying The Optimal Threshold For Our Imbalanced Data Using Youden's Index
+library(pROC)
+# names(validation)
+validation$prob <- predict(obj1_model1, newdata = validation, type = "response")
+# list the negative class first, positive class second!!
+roc_obj <- roc(validation$Subscribed, validation$prob, levels = c("no", "yes"))
+youden    <- coords(roc_obj, x = "best", best.method = "youden", transpose = FALSE)
+youden 
+myThreshold  <- youden$threshold
+myThreshold
+validation$predicted_class <- ifelse(validation$prob >= myThreshold, "yes", "no")
+validation$predicted_class <- factor(validation$predicted_class, levels = c("no", "yes"))
+confusionMatrix(data = validation$predicted_class, reference = validation$Subscribed, positive = "yes")
+
+
+```
+discuss the first model from objective 2   
+
+
+## Identifying The Optimal Threshold For Our Imbalanced Data Using Youden's Index
+Must come AFTER running a model, in fact, after EACH model for which we wish to identify the best threshold
+Super imbalanced data set (way more NO than YES)
+youden criterion=max(sensitivities+specificities)
+Youden's Index (J)=Bookmaker Informedness (BM)=Sensitivity + Specificity - 1
+Youden's Index = a single value that summarizes the performance of a diagnostic test.
+Helps determine the optimal cutoff point for a diagnostic test
+
+
+## knn
+```{r o2_knn}
+# library(caret)
+# fitControl<-trainControl(method="repeatedcv",number=5,repeats=1,classProbs=TRUE, summaryFunction=mnLogLoss)
+# set.seed(1234)
+# knn.fit<-train(Subscribed~age+balance,data=bank_full,method="knn",trControl=fitControl,metric="logLoss")
+# # Creating a validation set across the whole graph
+# validation KNN <- expand.grid(age=seq(-10, 10, by=0.25), balance=seq(-15, 15, by=0.5)) 
+# # Computing predicted probabilities on the training data
+# predictions <- predict(knn.fit, validationKNN, type="prob")[,"Yes"]
+# threshold=0.5
+# class_pred=as.factor(ifelse(predictions>myThreshold, "1", "0"))
+# color_array <- c("black", "red")[as.numeric(class_pred)]
+#  par(mfrow=c(1,2))
+#   plot(bank_full$age,bank_full$balance,col=bank_full$Subscribed,asp=1,pch=16,cex=.7,xlab="age",ylab="balance")
+#   plot(validationKNN,col=color_array,pch=20,cex=0.15)
+#  par(mfrow=c(1,2))
+```
+ 
+ ## See what the decision boundary is for an LDA model and a QDA model:
+
+```{r o2_ldq_qda}
+ 
+library(MASS)
+library(ggplot2)
+
+## Fit LDA and QDA models using age and balance
+ lda.fit <- lda(Subscribed~age+balance,data=bank_full)
+ qda.fit <- qda(Subscribed~age+balance,data=bank_full)
+ 
+ # Create grid of values for prediction
+ age.range <- seq(min(bank_full$age),max(bank_full$age),length.out=200)
+ balance.range <- seq(min(bank_full$balance),max(bank_full$balance),length.out=200)
+ grid <- expand.grid(age=age.range,balance=balance.range)
+ 
+ # Predict class for each point in the grid
+ lda.pred <- predict(lda.fit,grid)$class
+ qda.pred <- predict(qda.fit,grid)$class
+ 
+ # Plot decision boundaries
+ par(mfrow=c(1,2))
+ 	# LDA
+ 		plot(bank_full$age,bank_full$balance,col=bank_full$Subscribed,pch=16,xlab="Age",ylab="Balance",main="LDA Decision Boundary")
+ 		points(grid$age,grid$balance,col=c("black","red")[as.numeric(lda.pred)],pch=20,cex=0.1)
+ 	# QDA
+ 		plot(bank_full$age,bank_full$balance,col=bank_full$Subscribed,pch=16,xlab="Age",ylab="Balance",main="QDA Decision Boundary")
+ 		points(grid$age,grid$balance,col=c("black","red")[as.numeric(qda.pred)],pch=20,cex=0.1)
+ par(mfrow=c(1,1))
+
+
+## Fit LDA and QDA using duration and pdays
+ lda.fit <- lda(Subscribed~duration+pdays,data=bank_full)
+ qda.fit <- qda(Subscribed~duration+pdays,data=bank_full)
+ 
+ # Create prediction grid
+ age.range <- seq(min(bank_full$duration), max(bank_full$duration), length.out=200)
+ balance.range <- seq(min(bank_full$pdays), max(bank_full$pdays), length.out=200)
+ grid <- expand.grid(duration=age.range, pdays=balance.range)
+ 
+ # Predict class for each point in grid
+ lda.pred <- predict(lda.fit, grid)$class
+ qda.pred <- predict(qda.fit, grid)$class
+ 
+ # Plot decision boundaries
+ par(mfrow=c(1, 2))
+
+  
+## Fit LDA and QDA models using age and balance
+ lda.fit <- lda(Subscribed~age+balance,data=bank_full)
+ qda.fit <- qda(Subscribed~age+balance,data=bank_full)
+ 
+ # Create grid of values for prediction
+ age.range <- seq(min(bank_full$age),max(bank_full$age),length.out=200)
+ balance.range <- seq(min(bank_full$balance),max(bank_full$balance),length.out=200)
+ grid <- expand.grid(age=age.range,balance=balance.range)
+ 
+ # Predict class for each point in the grid
+ lda.pred <- predict(lda.fit,grid)$class
+ qda.pred <- predict(qda.fit,grid)$class
+ 
+ 
+ # Plot decision boundaries
+ par(mfrow=c(1,2))
+ 	# LDA
+ 		plot(bank_full$age,bank_full$balance,col=bank_full$Subscribed,pch=16,xlab="Age",ylab="Balance",main="LDA Decision Boundary")
+ 		points(grid$age,grid$balance,col=c("black","red")[as.numeric(lda.pred)],pch=20,cex=0.1)
+ 	# QDA
+ 		plot(bank_full$age,bank_full$balance,col=bank_full$Subscribed,pch=16,xlab="Age",ylab="Balance",main="QDA Decision Boundary")
+ 		points(grid$age,grid$balance,col=c("black","red")[as.numeric(qda.pred)],pch=20,cex=0.1)
+ par(mfrow=c(1,1))
+lda.fit$scaling
+qda.fit$scaling 
+```
+###  LDA/QDA  some kind of good header
+
+Black is NO. LDA Shows as age increases, the balance associated with yes is lower on average. # Say this better! 
+Older more likely to say yes
+Higher balance more likely to say yes
+Higher age needs less balance to trigger a yes
+
+Balance dominates age!
+balance=(constant - 0.0337 * age) / 0.000296
+```{r o2_lda_qda_all}
+
+# LDA/QDA with all predictors
+lda_full <- lda(Subscribed~.,data=bank_full)
+qda_full <- qda(Subscribed~.,data=bank_full)
+
+
+```
+Talk about LDA/QDA more
+
+```{r o2_feature_selection}
+
+# Full model
+
+obj2_model1 <- glm(Subscribed~age+job+education+marital+balance+contact+month+campaign+pdays+previous+poutcome,  data=bank_full, family="binomial")
+step_model <- step(obj2_model1, direction="both", trace=1)
+
+AIC(obj2_model1) # 27488.7
+AIC(step_model) #27488.23      trivial difference
+
+summary(obj2_model1)
+summary(step_model)
+
+```
+Trivial difference -- hardly any features dropped
+
+
+## Principal Component Analysis
+```{r o2_pca_to_reduce}
+# Ignore duration, even though numeric, because it is not a valid predictor; it's leaky -- we only know duration at the END of the call 
+# numeric_vars <- bank_full %>% select(age, balance, campaign, pdays, previous)
+# pca_result <- prcomp(numeric_vars, scale.=TRUE) # scale.=true means use the *Correlation matrix* instead of the covariance matrix
+# pca_scores <- as.data.frame(pca_result$x[, 1:3])
+# pca_scores$Subscribed <- bank_full$Subscribed
+# pca_model <- glm(y ~ .,data=pca_scores, family="binomial")
+# summary(pca_model)
+```
+talk about pca
+Well, that was NOT GREAT. 
+AIC: 31708
+All 3 principal components (PC1, PC2, PC3) are highly significant (p < 0.001).
+
+The model’s AIC is 31708, which is worse than the full-feature model (AIC: 27488).
+So PCA compression lost predictive information when we reduced 5 variables down to 3 components.
+```{r o2_lasso}
+library(glmnet)
+library(caret)
+x <- model.matrix(Subscribed~age+job+education+marital+balance+contact+month+campaign+pdays+previous+poutcome, data=bank_full)[, -1]  # remove intercept column
+y <- bank_full$Subscribed
+y_numeric <- ifelse(y == "yes", 1, 0)
+bank_full$month <- relevel(factor(bank_full$month), ref = "jan") # Make January the baseline month instead of April (R chooses April because alphabetical order)
+
+lasso_model <- cv.glmnet(x, y_numeric, alpha=1, family="binomial") #  LASSO with cross-validation
+coef(lasso_model, s="lambda.min")
+```
+Feature Selection using LASSO with Cross-Validation
+
+LASSO determined jobmanagement and monthnov add no predictive power in the presence of the other variables.
+
+Retained variables (nonzero coefficients):
+Compared with our baseline campaign month of January, campaign months March, September, October, and December were strong predictors of increased odds of subscribing. Conversely, 
+campaigns conducted in months February, June, July, and August were associated with decreased odds of subscribing.
+
+Students have higher odds of subscribing.
+
+Balance has predictive value, but surprisingly, it’s very weak compared to other variables. This is because balance is correlated with stronger predictors like job and education, so its unique contribution is small (0.0226 per €1000).
+
+```{r o2_balance_correlated}
+ggplot(bank_full, aes(x = job, y = balance)) +  geom_boxplot() +  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  labs(title = "Balance by Job")
+ggplot(bank_full, aes(x = education, y = balance)) +  geom_boxplot() +  labs(title = "Balance by Education Level")
+```
+
+## Decision Boundary Investigation
+```{r o2_decision_boundary}
+
+library(RSSL)
+set.seed(1234)
+mydata<-generateCrescentMoon(200,2,2) # Generates 200 points shaped like a crescent moon (nonlinear structure). 
+# "2,2" 
+# 2 (first): radius or distance between the two crescents → controls spacing
+# 2 (second): noise level → controls how much jitter or spread is added to the points
+# mydata$Class<-factor(ifelse(mydata$Class=="+","Yes","No")) # renames class values if  + then Yes else No
+# plot(mydata$X1,mydata$X2,col=mydata$Class,asp=1,pch=16,cex=.7,xlab="X1",ylab="X2")
+
+```
+
+
+## Unsupervised Learning
+• Other UNSUPERVISED tools such as HEATMAPS and CLUSTER ANALYSIS from Unit 13 and 14. 
+```{r o2_unsupervised}
+
+```
+
+all about our unnsupervised leanring results aaaaaaaaaaaaaaa
+
+
+
+## Clustering
+• Clustering is optional.
+
+```{r o2_Clustering}
+
+
+```
+
+
