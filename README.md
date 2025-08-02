@@ -9,7 +9,7 @@ Use logistic regression and classification tools to predict which bank customers
 ## Context
 > Moro, Cortez, and Laureano (2014).  
 > *A Data Mining Approach to Predict the Success of Bank Telemarketing*.  
-> [MoroCortezLaureano_DMApproach4DirectMKT.pdf](/MoroCortezLaureano_DMApproach4DirectMKT.pdf]
+> [MoroCortezLaureano_DMApproach4DirectMKT.pdf](MoroCortezLaureano_DMApproach4DirectMKT.pdf)
 
 Although the modeling in that paper goes beyond the scope of Dr. Turner's course, its framing helps inform how we interpret and communicate our results.
 
